@@ -7,6 +7,7 @@ import { setCartOpen, setSearchOpen, toggleDarkMode } from "../redux/slices/uiSl
 const links = [
     ["Home", "/"],
     ["Shop", "/shop"],
+    ["Blog", "/blog"],
     ["About", "/about"],
     ["Contact", "/contact"],
     ["FAQ", "/faq"],

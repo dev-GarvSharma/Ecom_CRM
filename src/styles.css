@@ -114,3 +114,16 @@ img {
   position: absolute;
   transform: translateX(-100%);
 }
+ .blog-content { color: inherit; font-size: 1.05rem; line-height: 1.9; overflow-wrap: anywhere; }
+ .blog-content h1, .blog-content h2, .blog-content h3, .blog-content h4 { font-family: Georgia, serif; font-weight: 700; line-height: 1.25; margin: 2rem 0 1rem; }
+ .blog-content h1 { font-size: 2.5rem; }
+ .blog-content h2 { font-size: 2rem; }
+ .blog-content h3 { font-size: 1.5rem; }
+ .blog-content p, .blog-content ul, .blog-content ol, .blog-content blockquote, .blog-content table { margin: 1rem 0; }
+ .blog-content ul, .blog-content ol { padding-left: 1.5rem; }
+ .blog-content ul { list-style: disc; }
+ .blog-content ol { list-style: decimal; }
+ .blog-content a { color: #9A5E36; text-decoration: underline; }
+ .blog-content blockquote { border-left: 3px solid #D4A373; padding-left: 1rem; opacity: .8; }
+ .blog-content table { border-collapse: collapse; width: 100%; }
+ .blog-content th, .blog-content td { border: 1px solid #D4A37355; padding: .65rem; text-align: left; }

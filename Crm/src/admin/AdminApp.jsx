@@ -16,6 +16,9 @@ import Access from "./pages/Access.jsx";
 import Offers from "./pages/Offers.jsx";
 import Promotions from "./pages/Promotions.jsx";
 import Activity from "./pages/Activity.jsx";
+import AbandonedCarts from "./pages/AbandonedCarts.jsx";
+import ContactMessages from "./pages/ContactMessages.jsx";
+import Blogs from "./pages/Blogs.jsx";
 import Notifications from "./pages/Notifications/Notifications.jsx";
 import Auth from "../pages/Auth.jsx";
 import { isAdminAccount, logout as requestLogout } from "../api/auth.js";
@@ -165,6 +168,9 @@ export default function AdminApp() {
             <Route path="/admin/offers" element={<Offers globalSearch={search} onNotify={setToast} />} />
             <Route path="/admin/promotions" element={<Promotions globalSearch={search} onNotify={setToast} />} />
             <Route path="/admin/activity" element={<Activity globalSearch={search} onNotify={setToast} />} />
+            <Route path="/admin/abandoned-carts" element={<AbandonedCarts globalSearch={search} onNotify={setToast} />} />
+            <Route path="/admin/contact-messages" element={<ContactMessages globalSearch={search} onNotify={setToast} />} />
+            <Route path="/admin/blogs" element={<Blogs globalSearch={search} onNotify={setToast} />} />
             <Route path="/admin/notifications" element={<Notifications globalSearch={search} onNotify={setToast} />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>

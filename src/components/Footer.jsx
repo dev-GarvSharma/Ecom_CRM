@@ -17,7 +17,7 @@ export default function Footer() {
                     </div>
                 </div>
                 <FooterList title="Shop" items={["New Arrivals", "Best Sellers", "Earrings", "Necklaces", "Flash Sale"]} />
-                <FooterList title="Support" items={["Contact Us", "FAQ", "Privacy Policy", "Return Policy", "Order Tracking"]} />
+                <FooterList title="Support" items={["Contact Us", "Blog", "FAQ", "Privacy Policy", "Return Policy", "Order Tracking"]} />
                 <div>
                     <h3 className="font-semibold">Boutique Notes</h3>
                     <p className="mt-4 text-sm text-white/70">Get launch drops, styling edits and secret coupons.</p>

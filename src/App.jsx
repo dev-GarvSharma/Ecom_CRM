@@ -22,6 +22,8 @@ import Profile from "./pages/Profile.jsx";
 import Orders from "./pages/Orders.jsx";
 import InfoPage from "./pages/InfoPage.jsx";
 import Contact from "./pages/Contact.jsx";
+import Blog from "./pages/Blog.jsx";
+import BlogDetails from "./pages/BlogDetails.jsx";
 
 export default function App() {
     const location = useLocation();
@@ -52,6 +54,8 @@ export default function App() {
                             <Route path="/return-policy" element={<InfoPage type="returns" />} />
                             <Route path="/faq" element={<InfoPage type="faq" />} />
                             <Route path="/contact" element={<Contact />} />
+                            <Route path="/blog" element={<Blog />} />
+                            <Route path="/blog/:slug" element={<BlogDetails />} />
                         </Routes>
                     </motion.div>
                 </AnimatePresence>
