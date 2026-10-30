@@ -15,46 +15,50 @@ import {
   SearchField,
   StatusPill,
 } from "../../components/AdminPrimitives.jsx";
+import { resolveImageUrl } from "../../../utils/image.js";
 
 export default function Categories({ globalSearch = "", onNotify }) {
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
-  const [created, setCreated] = useState([]);
-  const [edited, setEdited] = useState({});
   const [editingCategory, setEditingCategory] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [records, setRecords] = useState(20);
+  const [imagePreview, setImagePreview] = useState("");
   const load = () => {
     setLoading(true);
     setFailed(false);
     getAllCategories(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     getAllCategories(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [page, records]);
   if (loading) return <LoadingState label="Loading product categories" />;
   if (failed) return <ErrorState retry={load} />;
-  const allCategories = [
-    ...created,
-    ...(response?.data?.data || []).map((item) => ({ ...item, ...edited[item.id] })),
-  ];
+  const allCategories = response?.data?.data || [];
   const categories = allCategories.filter((item) =>
     `${item.name} ${item.slug}`
       .toLowerCase()
-      .includes(`${query} ${globalSearch}`.toLowerCase().trim()),
+      .includes((globalSearch.trim() || query).toLowerCase().trim()),
   );
   const closeModal = () => {
     setModalOpen(false);
     setEditingCategory(null);
+    setImagePreview("");
   };
   const openEdit = async (item) => {
     const result = await getCategoryDetails(item.id);
@@ -63,21 +67,24 @@ export default function Categories({ globalSearch = "", onNotify }) {
       return;
     }
     setEditingCategory(result?.data?.data);
+    setImagePreview(resolveImageUrl(result?.data?.data?.image));
     setModalOpen(true);
   };
   const saveCategory = async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const next = {
-      name: form.get("name"),
-      slug: form.get("slug"),
-      description: form.get("description"),
-      priority: Number(form.get("priority")),
-      meta_title: form.get("metaTitle"),
-      meta_description: form.get("metaDescription"),
-      robots_meta_tag: form.get("robots"),
-      show_on_home_page: form.get("featured") === "on",
-    };
+    const next = new FormData();
+    ["name", "slug", "description"].forEach((key) =>
+      next.set(key, String(form.get(key) || "")),
+    );
+    next.set("priority", String(Number(form.get("priority") || 0)));
+    next.set("meta_title", String(form.get("metaTitle") || ""));
+    next.set("meta_description", String(form.get("metaDescription") || ""));
+    next.set("robots_meta_tag", String(form.get("robots") || "index, follow"));
+    next.set("show_on_home_page", String(form.get("featured") === "on"));
+    const imageFile = form.get("image");
+    if (imageFile instanceof File && imageFile.size > 0)
+      next.set("image", imageFile);
     const result = editingCategory
       ? await updateCategory(editingCategory.id, next)
       : await createCategory(next);
@@ -85,35 +92,8 @@ export default function Categories({ globalSearch = "", onNotify }) {
       onNotify(result.message || "Could not save category.");
       return;
     }
-    if (editingCategory) {
-      if (editingCategory.mockCreated)
-        setCreated((items) =>
-          items.map((item) =>
-            item.id === editingCategory.id ? { ...item, ...next } : item,
-          ),
-        );
-      else
-        setEdited((items) => ({
-          ...items,
-          [editingCategory.id]: { ...items[editingCategory.id], ...next },
-        }));
-      onNotify("Category updated through the mock API.");
-    } else {
-      setCreated((items) => [
-        {
-          id: result?.data?.data?.id,
-          mockCreated: true,
-          parent_id: null,
-          company_info_uuid: "demo",
-          products: [],
-          canonical_tag: next.slug,
-          meta_keywords: null,
-          ...next,
-        },
-        ...items,
-      ]);
-      onNotify("Category created through the mock API.");
-    }
+    await load();
+    onNotify(editingCategory ? "Category updated." : "Category created.");
     closeModal();
   };
   return (
@@ -127,6 +107,7 @@ export default function Categories({ globalSearch = "", onNotify }) {
             className="admin-button admin-button-dark"
             onClick={() => {
               setEditingCategory(null);
+              setImagePreview("");
               setModalOpen(true);
             }}
           >
@@ -139,7 +120,11 @@ export default function Categories({ globalSearch = "", onNotify }) {
         {categories.map((category, index) => (
           <article className="admin-category-card" key={category.id}>
             <div className={`admin-category-art category-art-${index % 3}`}>
-              <FolderPlus size={22} />
+              {category.image ? (
+                <img src={resolveImageUrl(category.image)} alt={`${category.name} category`} loading="lazy" />
+              ) : (
+                <FolderPlus size={22} />
+              )}
               <span>{String(index + 1).padStart(2, "0")}</span>
             </div>
             <div className="admin-category-card-content">
@@ -163,7 +148,7 @@ export default function Categories({ globalSearch = "", onNotify }) {
                   <strong>{category.products?.length || 0}</strong> products
                 </span>
                 <StatusPill>
-                  {category.show_on_home_page ? "Featured" : "Hidden"}
+                  {(category.showOnHomePage ?? category.show_on_home_page) ? "Featured" : "Hidden"}
                 </StatusPill>
               </div>
             </div>
@@ -208,12 +193,12 @@ export default function Categories({ globalSearch = "", onNotify }) {
                   </td>
                   <td>
                     <StatusPill>
-                      {item.show_on_home_page ? "Visible" : "Hidden"}
+                      {(item.showOnHomePage ?? item.show_on_home_page) ? "Visible" : "Hidden"}
                     </StatusPill>
                   </td>
                   <td>{item.priority}</td>
-                  <td>{item.meta_title}</td>
-                  <td className="admin-code">{item.robots_meta_tag}</td>
+                  <td>{item.metaTitle || item.meta_title}</td>
+                  <td className="admin-code">{item.robotsMetaTag || item.robots_meta_tag}</td>
                   <td>
                     <button
                       className="admin-icon-button table-more"
@@ -283,6 +268,22 @@ export default function Categories({ globalSearch = "", onNotify }) {
                 placeholder="Short collection description"
               />
             </label>
+            <label className="admin-category-image-field">
+              Category image{!editingCategory && " (required)"}
+              <input
+                name="image"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                required={!editingCategory}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) setImagePreview(URL.createObjectURL(file));
+                  else setImagePreview(resolveImageUrl(editingCategory?.image));
+                }}
+              />
+              {imagePreview && <img className="admin-category-image-preview" src={imagePreview} alt="Category preview" />}
+              <small>JPG, PNG, WebP or AVIF. A square or landscape image works best.</small>
+            </label>
             <div className="admin-form-row">
               <label>
                 Priority
@@ -298,7 +299,7 @@ export default function Categories({ globalSearch = "", onNotify }) {
                 <select
                   name="robots"
                   defaultValue={
-                    editingCategory?.robots_meta_tag || "index, follow"
+                    editingCategory?.robotsMetaTag || editingCategory?.robots_meta_tag || "index,follow"
                   }
                 >
                   <option>index, follow</option>
@@ -311,7 +312,7 @@ export default function Categories({ globalSearch = "", onNotify }) {
               Meta title
               <input
                 name="metaTitle"
-                defaultValue={editingCategory?.meta_title || ""}
+                defaultValue={editingCategory?.metaTitle || editingCategory?.meta_title || ""}
                 placeholder="Search result title"
               />
             </label>
@@ -320,7 +321,7 @@ export default function Categories({ globalSearch = "", onNotify }) {
               <textarea
                 name="metaDescription"
                 rows="2"
-                defaultValue={editingCategory?.meta_description || ""}
+                defaultValue={editingCategory?.metaDescription || editingCategory?.meta_description || ""}
                 placeholder="Search result description"
               />
             </label>
@@ -328,7 +329,7 @@ export default function Categories({ globalSearch = "", onNotify }) {
               <input
                 type="checkbox"
                 name="featured"
-                defaultChecked={editingCategory?.show_on_home_page || false}
+                defaultChecked={editingCategory?.showOnHomePage ?? editingCategory?.show_on_home_page ?? false}
               />
               Show on home page
             </label>

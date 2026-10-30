@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import AdminSidebar from "./components/AdminSidebar.jsx";
 import AdminTopbar from "./components/AdminTopbar.jsx";
 import { Toast } from "./components/AdminPrimitives.jsx";
@@ -12,22 +12,44 @@ import Inventory from "./pages/Inventory/Inventory.jsx";
 import Analytics from "./pages/Analytics/Analytics.jsx";
 import Settings from "./pages/Settings/Settings.jsx";
 import Marketing from "./pages/Marketing/Marketing.jsx";
+import Access from "./pages/Access.jsx";
+import Offers from "./pages/Offers.jsx";
+import Promotions from "./pages/Promotions.jsx";
+import Activity from "./pages/Activity.jsx";
+import Notifications from "./pages/Notifications/Notifications.jsx";
 import Auth from "../pages/Auth.jsx";
-import { isAdminAccount } from "../api/auth.js";
+import { isAdminAccount, logout as requestLogout } from "../api/auth.js";
+import { get } from "./app/axiosWrapper.js";
 import LocalStorageService from "./services/localStorageService.js";
 import "./admin.css";
 
 export default function AdminApp() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
+  const [currentUser, setCurrentUser] = useState(LocalStorageService.getUserData());
   const isLoginRoute = location.pathname === "/admin/login";
   const isAuthenticatedAdmin = Boolean(
     LocalStorageService.getAccessToken() &&
       isAdminAccount(LocalStorageService.getUserData()),
   );
+
+  useEffect(() => {
+    if (isLoginRoute || !LocalStorageService.getAccessToken()) return;
+    get("auth/me").then((result) => {
+      const user = result.data?.data;
+      if (result.success && isAdminAccount(user)) {
+        setCurrentUser(user);
+        LocalStorageService.setUserData(user);
+      } else if (result.status === 403 || (result.success && !isAdminAccount(user))) {
+        LocalStorageService.clearAuthData();
+        setCurrentUser(null);
+      }
+    });
+  }, [isLoginRoute]);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -73,6 +95,13 @@ export default function AdminApp() {
     return <Navigate to="/admin/login" replace />;
   }
 
+  const signOut = async () => {
+    await requestLogout();
+    LocalStorageService.clearAuthData();
+    setCurrentUser(null);
+    navigate("/admin/login", { replace: true });
+  };
+
   return (
     <div className={`admin-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
       <AdminSidebar
@@ -80,6 +109,8 @@ export default function AdminApp() {
         onClose={() => setSidebarOpen(false)}
         collapsed={collapsed}
         onToggle={() => setCollapsed((value) => !value)}
+        user={currentUser}
+        onLogout={signOut}
       />
       <div className="admin-main">
         <AdminTopbar
@@ -87,6 +118,7 @@ export default function AdminApp() {
           onSearch={setSearch}
           search={search}
           menuOpen={sidebarOpen}
+          user={currentUser}
         />
         <main className="admin-content">
           <Routes>
@@ -124,8 +156,16 @@ export default function AdminApp() {
             />
             <Route
               path="/admin/marketing"
-              element={<Marketing onNotify={setToast} />}
+              element={<Marketing globalSearch={search} onNotify={setToast} />}
             />
+            <Route
+              path="/admin/access"
+              element={<Access globalSearch={search} onNotify={setToast} />}
+            />
+            <Route path="/admin/offers" element={<Offers globalSearch={search} onNotify={setToast} />} />
+            <Route path="/admin/promotions" element={<Promotions globalSearch={search} onNotify={setToast} />} />
+            <Route path="/admin/activity" element={<Activity globalSearch={search} onNotify={setToast} />} />
+            <Route path="/admin/notifications" element={<Notifications globalSearch={search} onNotify={setToast} />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>
         </main>

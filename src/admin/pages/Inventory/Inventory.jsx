@@ -19,8 +19,9 @@ import {
 import AdminPortal from "../../components/AdminPortal.jsx";
 import {
   formatRupees,
-  getProductsFromCategories,
+  getProductsFromVariants,
 } from "../../models/catalog.js";
+import { downloadCsv } from "../../services/exportCsv.js";
 
 export default function Inventory({ globalSearch = "", onNotify }) {
   const [response, setResponse] = useState(null);
@@ -37,19 +38,25 @@ export default function Inventory({ globalSearch = "", onNotify }) {
     setLoading(true);
     setFailed(false);
     getInventory(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     getInventory(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [page, records]);
   if (loading) return <LoadingState label="Checking inventory levels" />;
   if (failed) return <ErrorState retry={load} />;
-  const products = getProductsFromCategories(response?.data?.data || []).map((product) => {
+  const products = getProductsFromVariants(response?.data?.data || []).map((product) => {
     const stock = stockUpdates[product.id] ?? product.stock;
     return {
       ...product,
@@ -62,7 +69,7 @@ export default function Inventory({ globalSearch = "", onNotify }) {
     (item) =>
       `${item.name} ${item.sku}`
         .toLowerCase()
-        .includes(`${query} ${globalSearch}`.toLowerCase().trim()) &&
+        .includes((globalSearch.trim() || query).toLowerCase().trim()) &&
       (filter === "All stock" ||
         (filter === "Low stock"
           ? item.status !== "In stock"
@@ -71,38 +78,46 @@ export default function Inventory({ globalSearch = "", onNotify }) {
   const low = products.filter((item) => item.status !== "In stock");
   const exportReport = async () => {
     const result = await exportInventoryReport();
-    onNotify(result.message || "Inventory report exported.");
+    const rows = result.data?.data || [];
+    onNotify(result.success
+      ? downloadCsv("perfume-inventory.csv", rows.map((variant) => ({
+          sku: variant.sku,
+          product: variant.product?.name,
+          options: variant.options,
+          price: variant.price,
+          stock: variant.stock,
+        }))) ? "Inventory report downloaded." : "No inventory to export."
+      : result.message || "Could not export inventory.");
   };
   const restock = async (product) => {
-    const quantity = product.stock + 10;
-    const result = await restockInventory(product.id, quantity);
+    const result = await restockInventory(product.id, 10);
     if (!result.success) {
       onNotify(result.message || "Could not restock this product.");
       return;
     }
-    setStockUpdates((current) => ({ ...current, [product.id]: quantity }));
-    onNotify(`${product.name} restocked through the mock API.`);
+    setStockUpdates((current) => ({ ...current, [product.id]: product.stock + 10 }));
+    onNotify(`${product.name} variant restocked.`);
   };
   const saveAdjustment = async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const productId = String(form.get("productId"));
+    const variantId = String(form.get("variantId"));
     const quantity = Number(form.get("quantity"));
-    const result = await updateInventory(productId, quantity);
+    const result = await updateInventory(variantId, quantity);
     if (!result.success) {
       onNotify(result.message || "Could not adjust inventory.");
       return;
     }
-    setStockUpdates((current) => ({ ...current, [productId]: quantity }));
+    setStockUpdates((current) => ({ ...current, [variantId]: quantity }));
     setAdjustOpen(false);
-    onNotify("Inventory quantity updated through the mock API.");
+    onNotify("Inventory quantity updated.");
   };
   return (
     <div className="admin-page-content">
       <PageHeading
         eyebrow="OPERATIONS"
         title="Inventory"
-        description="Stay ahead of stockouts and keep popular blends available."
+        description="Track stock by perfume product size and SKU."
         action={
           <div className="admin-heading-actions">
             <button
@@ -198,7 +213,7 @@ export default function Inventory({ globalSearch = "", onNotify }) {
                       </div>
                       <div>
                         <strong>{item.name}</strong>
-                        <span>{item.weight}</span>
+                        <span>{Object.values(item.options).join(" / ")}</span>
                       </div>
                     </div>
                   </td>
@@ -255,13 +270,13 @@ export default function Inventory({ globalSearch = "", onNotify }) {
               <label>
                 Product
                 <select
-                  name="productId"
+                  name="variantId"
                   value={adjustingProduct}
                   onChange={(event) => setAdjustingProduct(event.target.value)}
                 >
                   {products.map((product) => (
                     <option key={product.id} value={product.id}>
-                      {product.name}
+                      {product.name} · {Object.values(product.options).join(" / ")}
                     </option>
                   ))}
                 </select>

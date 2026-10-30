@@ -23,7 +23,7 @@ export default function Cart() {
             {items.map((item) => (
               <div key={item.id} className="grid gap-4 rounded-3xl bg-white/60 p-4 shadow-lg dark:bg-white/5 sm:grid-cols-[120px_1fr_auto]">
                 <img src={resolveImageUrl(item.images[0])} alt={item.name} className="h-32 w-full rounded-2xl object-cover sm:w-28" />
-                <div><h3 className="font-display text-2xl">{item.name}</h3><p className="mt-1 text-sm opacity-60">{item.material}</p><p className="mt-3 font-bold text-[#D4A373]">{currency(item.price)}</p></div>
+                <div><h3 className="font-display text-2xl">{item.name}</h3><p className="mt-1 text-sm opacity-60">{Object.values(item.variantOptions || {}).join(' / ')}</p><p className="mt-3 font-bold text-[#D4A373]">{currency(item.price)}</p></div>
                 <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
                   <div className="flex items-center rounded-full bg-[#FFF8F5] dark:bg-white/10"><button className="p-3" onClick={() => dispatch(updateQuantity({ id: item.id, quantity: item.quantity - 1 }))}><Minus size={15} /></button><span className="px-2 font-bold">{item.quantity}</span><button className="p-3" onClick={() => dispatch(updateQuantity({ id: item.id, quantity: item.quantity + 1 }))}><Plus size={15} /></button></div>
                   <button onClick={() => dispatch(removeFromCart(item.id))} className="text-[#D4A373]"><Trash2 size={18} /></button>

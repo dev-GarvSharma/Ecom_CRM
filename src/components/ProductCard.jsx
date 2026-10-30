@@ -14,6 +14,7 @@ export default function ProductCard({ product }) {
   const wished = useSelector((state) => state.wishlist.items.some((item) => item.id === product.id));
 
   const add = () => {
+    if (!product.variants?.some((variant) => variant.active && variant.stock > 0)) return;
     dispatch(addToCart(product));
     dispatch(setCartOpen(true));
     dispatch(showToast(`${product.name} added to cart`));
@@ -72,7 +73,7 @@ export default function ProductCard({ product }) {
           <p className="font-bold text-[#1A1A1A] dark:text-[#FFF8F5]">
             {currency(product.price)} <span className="ml-1 text-sm font-medium text-[#1A1A1A]/40 line-through dark:text-white/40">{currency(product.oldPrice)}</span>
           </p>
-          <button className="grid h-10 w-10 place-items-center rounded-full rose-gradient text-[#1A1A1A] shadow-lg" onClick={add} aria-label="Add to cart">
+          <button className="grid h-10 w-10 place-items-center rounded-full rose-gradient text-[#1A1A1A] shadow-lg disabled:cursor-not-allowed disabled:opacity-40" onClick={add} disabled={!product.variants?.some((variant) => variant.active && variant.stock > 0)} aria-label="Add to cart">
             <ShoppingBag size={18} />
           </button>
         </div>

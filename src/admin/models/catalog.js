@@ -1,37 +1,49 @@
 import { resolveImageUrl } from "../../utils/image.js";
 
 export const getProductsFromCategories = (categoryResponse = []) =>
-  categoryResponse.flatMap((category) =>
-    (category.products || []).map((stockProduct) => {
-      const model = stockProduct.ConsumableProductsModel || {};
-      const images = (model.ConsumableProductsModelImages || [])
-        .map((image) => resolveImageUrl(typeof image === "string" ? image : image.url))
-        .filter(Boolean);
-      if (!images.length && model.image) images.push(resolveImageUrl(model.image));
-      return {
-        id: stockProduct.id,
-        modelId: model.id,
-        name: model.name || "Unnamed product",
-        sku: stockProduct.sku || model.sku || "—",
-        category: category.name,
-        price: Number(stockProduct.selling_price || model.selling_price || 0),
-        mrp: Number(stockProduct.price || model.mrp || 0),
-        stock: Number(stockProduct.quantity || 0),
-        weight: model.Weight?.quantity || "—",
-        images: images.slice(0, 5),
-        image: images[0] || "",
-        slug: model.slug || "",
-        showOnShop: Boolean(stockProduct.show_on_shop),
-        rating: Number(stockProduct.average_rating || 0),
-        status:
-          Number(stockProduct.quantity) === 0
-            ? "Out of stock"
-            : Number(stockProduct.quantity) < 10
-              ? "Low stock"
-              : "In stock",
-      };
-    }),
-  );
+  categoryResponse.map((product) => {
+    const variants = (product.variants || []).filter((variant) => variant.active);
+    const images = (product.images || [])
+      .map((image) => resolveImageUrl(typeof image === "string" ? image : image.path))
+      .filter(Boolean);
+    const stock = variants.reduce((sum, variant) => sum + Number(variant.stock || 0), 0);
+    const prices = variants.map((variant) => Number(variant.price));
+    const comparePrices = variants.map((variant) => Number(variant.compareAtPrice)).filter(Number.isFinite);
+    return {
+      ...product,
+      name: product.name || "Unnamed product",
+      sku: variants.map((variant) => variant.sku).join(", ") || "—",
+      category: product.category?.name || "Uncategorized",
+      price: prices.length ? Math.min(...prices) : 0,
+      mrp: comparePrices.length ? Math.max(...comparePrices) : 0,
+      stock,
+      images,
+      image: images[0] || "",
+      status: stock === 0 ? "Out of stock" : stock < 10 ? "Low stock" : "In stock",
+    };
+  });
+
+export const getProductsFromVariants = (variantRows = []) =>
+  variantRows.map((variant) => {
+    const product = variant.product || {};
+    const images = (product.images || [])
+      .map((image) => resolveImageUrl(image.path))
+      .filter(Boolean);
+    const stock = Number(variant.stock || 0);
+    return {
+      id: variant.id,
+      productId: product.id,
+      name: product.name || "Unnamed product",
+      category: product.category?.name || "Uncategorized",
+      sku: variant.sku,
+      options: variant.options || {},
+      price: Number(variant.price || 0),
+      mrp: Number(variant.compareAtPrice || 0),
+      stock,
+      image: images[0] || "",
+      status: stock === 0 ? "Out of stock" : stock < 10 ? "Low stock" : "In stock",
+    };
+  });
 
 export const formatRupees = (value) =>
   new Intl.NumberFormat("en-IN", {

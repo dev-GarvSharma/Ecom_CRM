@@ -18,18 +18,17 @@ The image [database-erd.svg](database-erd.svg) is a standalone diagram and can b
 
 ### Catalog and inventory
 
-- `categories`: optional self-referencing parent category, unique slug, name, sort order, active flag.
-- `products`: category foreign key, unique slug, name, description, publication status, and timestamps.
-- `product_variants`: product foreign key, unique SKU, structured attributes (such as color/material), selling price, compare-at price, and active flag. Prices use `NUMERIC`, never floating point.
-- `product_images`: product foreign key, storage key, alt text, sort order, optional variant foreign key. Actual image bytes stay in object storage.
+- `categories`: one-level jewelry category, unique slug, name, image URL/path, sort order, and active flag. Example categories include Earrings, Necklaces, Rings, Bracelets, Hair Jewels, and Anklets.
+- `products`: category foreign key, unique slug, name, description, material, flexible product-level attributes (such as care instructions and occasions), publication status, and timestamps. Product records do not own SKU, price, or stock.
+- `product_variants`: product foreign key, unique SKU, flexible option values (for example `{ "finish": "Rose Gold", "ringSize": "6" }`), selling price, compare-at price, on-hand stock, and active flag. Each purchasable option combination has its own row.
+- `product_images`: product foreign key and image path. Actual image bytes stay in upload storage or object storage.
 - `tags` and `product_tags`: normalized many-to-many product merchandising tags.
-- `inventory`: one row per variant with on-hand and reserved quantities; enforce non-negative quantities and `reserved <= on_hand`.
-- `inventory_movements`: append-only stock adjustment/reservation/release/sale ledger with variant foreign key, signed quantity, reason, actor, reference, and timestamp.
+- Inventory is tracked on each `product_variants` row; a future inventory ledger can record adjustments and sales without changing the product/variant contract.
 
 ### Shopping
 
 - `carts`: owner user foreign key (nullable for a guest cart), status, currency, expiry, timestamps.
-- `cart_items`: cart and variant foreign keys, quantity, unique `(cart_id, variant_id)`. Price is recalculated server-side during checkout.
+- `cart_items`: cart and variant foreign keys, quantity, unique `(cart_id, variant_id)`. Price and availability are recalculated server-side during checkout.
 - `wishlists` and `wishlist_items`: user-owned lists and product/optional variant links, unique per wishlist/product.
 
 ### Orders and fulfillment
@@ -52,7 +51,7 @@ The image [database-erd.svg](database-erd.svg) is a standalone diagram and can b
 ## Main Relationships
 
 - `users 1:N user_addresses`, `auth_identities`, `carts`, `wishlists`, `orders`, and `reviews`.
-- `categories 1:N products`; `categories 1:N categories` for nested categories.
+- `categories 1:N products` (single-level category list).
 - `products 1:N product_variants` and `product_images`; `products M:N tags` through `product_tags`.
 - `product_variants 1:1 inventory`; `product_variants 1:N inventory_movements` and `cart_items`.
 - `carts 1:N cart_items`; `wishlists 1:N wishlist_items`.

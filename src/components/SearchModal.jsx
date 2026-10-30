@@ -2,16 +2,17 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Search, X } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { products } from '../data/products.js';
+import { useCatalog } from '../catalog/useCatalog.js';
 import { setSearchOpen } from '../redux/slices/uiSlice.js';
 import { useMemo, useState } from 'react';
 import { resolveImageUrl } from '../utils/image.js';
 
 export default function SearchModal() {
+  const { products } = useCatalog();
   const open = useSelector((state) => state.ui.searchOpen);
   const dispatch = useDispatch();
   const [query, setQuery] = useState('');
-  const suggestions = useMemo(() => products.filter((product) => product.name.toLowerCase().includes(query.toLowerCase()) || product.category.toLowerCase().includes(query.toLowerCase())).slice(0, 5), [query]);
+  const suggestions = useMemo(() => products.filter((product) => product.name.toLowerCase().includes(query.toLowerCase()) || product.category.toLowerCase().includes(query.toLowerCase())).slice(0, 5), [products, query]);
 
   return (
     <AnimatePresence>

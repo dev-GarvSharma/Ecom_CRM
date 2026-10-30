@@ -7,4 +7,4 @@ export const updateInventory = async (productId, quantity) =>
 export const restockInventory = async (productId, quantity) =>
   await post(`admin/inventory/${productId}/restock`, { quantity });
 export const exportInventoryReport = async () =>
-  await post("admin/inventory/export", {});
+  await post("admin/inventory/export?page=1&recordPerPage=100", {});

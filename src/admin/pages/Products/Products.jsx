@@ -31,6 +31,26 @@ import {
   getProductsFromCategories,
 } from "../../models/catalog.js";
 import { resolveImageUrl } from "../../../utils/image.js";
+import { getAllCategories } from "../Categories/api.js";
+import { downloadCsv } from "../../services/exportCsv.js";
+
+const emptyVariant = () => ({
+  sku: "",
+  optionsText: "",
+  price: "",
+  compareAtPrice: "",
+  stock: "0",
+  active: true,
+});
+
+const parseOptions = (text) => Object.fromEntries(
+  text.split(",").map((part) => part.trim()).filter(Boolean).map((part) => {
+    const [key, ...value] = part.split("=");
+    const raw = value.join("=").trim();
+    return [key.trim(), raw !== "" && Number.isFinite(Number(raw)) ? Number(raw) : raw];
+  }).filter(([key, value]) => key && value),
+);
+const parseNotes = (value) => String(value || "").split(",").map((note) => note.trim()).filter(Boolean);
 
 export default function Products({ globalSearch = "", onNotify }) {
   const [response, setResponse] = useState(null);
@@ -40,9 +60,9 @@ export default function Products({ globalSearch = "", onNotify }) {
   const [status, setStatus] = useState("All status");
   const [category, setCategory] = useState("All categories");
   const [modal, setModal] = useState(false);
-  const [created, setCreated] = useState([]);
-  const [edited, setEdited] = useState({});
+  const [categoryRecords, setCategoryRecords] = useState([]);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [variantDraft, setVariantDraft] = useState([]);
   const [imageDraft, setImageDraft] = useState(Array(5).fill(""));
   const [imageFiles, setImageFiles] = useState(Array(5).fill(null));
   const [selected, setSelected] = useState([]);
@@ -52,31 +72,36 @@ export default function Products({ globalSearch = "", onNotify }) {
     setLoading(true);
     setFailed(false);
     getAllProducts(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     getAllProducts(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [page, records]);
+  useEffect(() => {
+    getAllCategories(1, 100).then((result) => {
+      if (result.success) setCategoryRecords(result.data?.data || []);
+    });
+  }, []);
   const products = useMemo(
-    () => [
-      ...created,
-      ...getProductsFromCategories(response?.data?.data || []).map((item) => ({
-        ...item,
-        ...edited[item.id],
-      })),
-    ],
-    [created, edited, response],
+    () => getProductsFromCategories(response?.data?.data || []),
+    [response],
   );
   const visible = products.filter(
     (item) =>
       `${item.name} ${item.sku} ${item.category}`
         .toLowerCase()
-        .includes(`${query} ${globalSearch}`.toLowerCase().trim()) &&
+        .includes((globalSearch.trim() || query).toLowerCase().trim()) &&
       (status === "All status" || item.status === status) &&
       (category === "All categories" || item.category === category),
   );
@@ -86,6 +111,7 @@ export default function Products({ globalSearch = "", onNotify }) {
   ];
   const openCreate = () => {
     setEditingProduct(null);
+    setVariantDraft([emptyVariant()]);
     setImageDraft(Array(5).fill(""));
     setImageFiles(Array(5).fill(null));
     setModal(true);
@@ -96,29 +122,22 @@ export default function Products({ globalSearch = "", onNotify }) {
       onNotify(result.message || "Could not load product details.");
       return;
     }
-    const apiProduct = result?.data?.data;
-    const product = {
-      ...item,
-      name: apiProduct.ConsumableProductsModel.name,
-      sku: apiProduct.sku,
-      price: Number(apiProduct.selling_price),
-      mrp: Number(apiProduct.price),
-      stock: Number(apiProduct.quantity),
-      images: (
-        apiProduct.ConsumableProductsModel.ConsumableProductsModelImages || []
-      ).map((image) => resolveImageUrl(image.url)),
-      image:
-        resolveImageUrl(
-          apiProduct.ConsumableProductsModel.ConsumableProductsModelImages?.[0]
-            ?.url,
-        ),
-    };
+    const product = result?.data?.data;
     setEditingProduct(product);
+    setVariantDraft((product.variants || []).map((variant) => ({
+      id: variant.id,
+      sku: variant.sku,
+      optionsText: Object.entries(variant.options || {}).map(([key, value]) => `${key}=${value}`).join(", "),
+      price: String(variant.price),
+      compareAtPrice: variant.compareAtPrice == null ? "" : String(variant.compareAtPrice),
+      stock: String(variant.stock),
+      active: variant.active,
+    })));
     setImageDraft(
       Array.from(
         { length: 5 },
         (_, index) =>
-          product.images?.[index] || (index === 0 ? product.image : "") || "",
+          resolveImageUrl(product.images?.[index]?.path) || "",
       ),
     );
     setImageFiles(Array(5).fill(null));
@@ -146,17 +165,7 @@ export default function Products({ globalSearch = "", onNotify }) {
       onNotify(result.message || "Could not update product visibility.");
       return;
     }
-    setEdited((current) =>
-      Object.fromEntries([
-        ...Object.entries(current),
-        ...selected.map((id) => [id, { ...current[id], showOnShop: true }]),
-      ]),
-    );
-    setCreated((items) =>
-      items.map((item) =>
-        selected.includes(item.id) ? { ...item, showOnShop: true } : item,
-      ),
-    );
+    load();
     setSelected([]);
     onNotify("Product visibility updated.");
   };
@@ -175,7 +184,10 @@ export default function Products({ globalSearch = "", onNotify }) {
               className="admin-button admin-button-secondary"
               onClick={async () => {
                 const result = await exportProducts();
-                onNotify(result.message || "Products exported.");
+                const rows = result.data?.data || [];
+                onNotify(result.success
+                  ? downloadCsv("perfume-products.csv", rows) ? "Products downloaded." : "No products to export."
+                  : result.message || "Could not export products.");
               }}
             >
               <Download size={16} />
@@ -276,7 +288,6 @@ export default function Products({ globalSearch = "", onNotify }) {
             </thead>
             <tbody>
               {visible.map((item) => (
-                console.log(item),
                 <tr key={item.id}>
                   <td>
                     <input
@@ -299,7 +310,7 @@ export default function Products({ globalSearch = "", onNotify }) {
                       </div>
                       <div>
                         <strong>{item.name}</strong>
-                        <span>{item.weight}</span>
+                        <span>{item.brand || "Perfume"}</span>
                       </div>
                     </div>
                   </td>
@@ -348,32 +359,57 @@ export default function Products({ globalSearch = "", onNotify }) {
               onSubmit={async (event) => {
                 event.preventDefault();
                 const values = new FormData(event.currentTarget);
-                const stock = Number(values.get("stock"));
                 const filesToUpload = imageFiles.filter(Boolean);
                 const images = imageDraft
-                  .filter((image, index) => image && !imageFiles[index])
+                  .map((image, index) => imageFiles[index]
+                    ? null
+                    : editingProduct?.images?.[index]?.path || (image.startsWith("/uploads/") ? image : null))
                   .filter(Boolean);
+                const variants = variantDraft
+                  .filter((variant) => variant.sku.trim() && variant.price !== "")
+                  .map((variant) => ({
+                    id: variant.id,
+                    sku: variant.sku.trim(),
+                    options: parseOptions(variant.optionsText),
+                    price: Number(variant.price),
+                    compareAtPrice: variant.compareAtPrice === "" ? null : Number(variant.compareAtPrice),
+                    stock: Number(variant.stock),
+                    active: variant.active !== false,
+                  }));
+                if (!variants.length) {
+                  onNotify("Add at least one variant with a SKU and price.");
+                  return;
+                }
+                let attributes;
+                try {
+                  attributes = JSON.parse(values.get("attributes") || "{}");
+                } catch {
+                  onNotify("Product attributes must be valid JSON.");
+                  return;
+                }
                 const next = {
                   name: values.get("name"),
-                  sku: values.get("sku"),
-                  category: values.get("category"),
-                  price: Number(values.get("price")),
-                  mrp: Number(values.get("mrp")),
-                  stock,
-                  weight: values.get("weight") || "New item",
+                  slug: values.get("slug"),
+                  categoryId: values.get("categoryId"),
+                  brand: values.get("brand"),
+                  concentration: values.get("concentration"),
+                  fragranceFamily: values.get("fragranceFamily"),
+                  topNotes: parseNotes(values.get("topNotes")),
+                  heartNotes: parseNotes(values.get("heartNotes")),
+                  baseNotes: parseNotes(values.get("baseNotes")),
+                  description: values.get("description"),
+                  attributes,
+                  showOnShop: values.get("showOnShop") === "on",
+                  variants,
                   images,
-                  status:
-                    stock === 0
-                      ? "Out of stock"
-                      : stock < 10
-                        ? "Low stock"
-                        : "In stock",
                 };
                 const productFormData = new FormData();
                 Object.entries(next).forEach(([key, value]) => {
                   productFormData.append(
                     key,
-                    key === "images" ? JSON.stringify(value) : String(value),
+                    ["images", "variants", "attributes"].includes(key)
+                      ? JSON.stringify(value)
+                      : String(value),
                   );
                 });
                 filesToUpload.forEach((file) =>
@@ -386,31 +422,8 @@ export default function Products({ globalSearch = "", onNotify }) {
                   onNotify(result.message || "Could not save product.");
                   return;
                 }
-                if (editingProduct) {
-                  if (editingProduct.mockCreated)
-                    setCreated((items) =>
-                      items.map((item) =>
-                        item.id === editingProduct.id
-                          ? { ...item, ...next }
-                          : item,
-                      ),
-                    );
-                  else
-                    setEdited((items) => ({
-                      ...items,
-                      [editingProduct.id]: {
-                        ...items[editingProduct.id],
-                        ...next,
-                      },
-                    }));
-                  onNotify("Product updated through the mock API.");
-                } else {
-                  setCreated((items) => [
-                    { ...next, id: result?.data?.data?.id, mockCreated: true },
-                    ...items,
-                  ]);
-                  onNotify("Product created through the mock API.");
-                }
+                load();
+                onNotify(editingProduct ? "Perfume product updated." : "Perfume product created.");
                 setModal(false);
                 setEditingProduct(null);
               }}
@@ -442,77 +455,78 @@ export default function Products({ globalSearch = "", onNotify }) {
                   name="name"
                   required
                   defaultValue={editingProduct?.name || ""}
-                  placeholder="e.g. Himalayan Green Tea"
+                  placeholder="e.g. Cedar Coast Eau de Parfum"
                 />
               </label>
               <div className="admin-form-row">
                 <label>
-                  SKU
+                  Product URL slug
                   <input
-                    name="sku"
-                    required
-                    defaultValue={editingProduct?.sku || ""}
-                    placeholder="SKU-100G"
+                    name="slug"
+                    defaultValue={editingProduct?.slug || ""}
+                  placeholder="cedar-coast-eau-de-parfum"
                   />
                 </label>
                 <label>
                   Category
                   <select
-                    name="category"
-                    defaultValue={
-                      editingProduct?.category || categories[1] || "Premium Tea"
-                    }
+                    name="categoryId"
+                    required
+                    defaultValue={editingProduct?.categoryId || categoryRecords[0]?.id || ""}
                   >
-                    {categories.slice(1).map((item) => (
-                      <option key={item}>{item}</option>
+                    {categoryRecords.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
                     ))}
                   </select>
                 </label>
               </div>
               <div className="admin-form-row">
                 <label>
-                  Selling price (₹)
-                  <input
-                    name="price"
-                    type="number"
-                    min="1"
-                    required
-                    defaultValue={editingProduct?.price || ""}
-                    placeholder="499"
-                  />
+                  Material
+                  <input name="brand" defaultValue={editingProduct?.brand || ""} placeholder="Maison Aroma" />
                 </label>
                 <label>
-                  Compare-at price (₹)
-                  <input
-                    name="mrp"
-                    type="number"
-                    min="0"
-                    defaultValue={editingProduct?.mrp || ""}
-                    placeholder="899"
-                  />
+                  Product attributes (JSON)
+                  <input name="attributes" defaultValue={JSON.stringify(editingProduct?.attributes || {})} placeholder='{"season":"Summer"}' />
                 </label>
               </div>
               <div className="admin-form-row">
-                <label>
-                  Stock quantity
-                  <input
-                    name="stock"
-                    type="number"
-                    min="0"
-                    required
-                    defaultValue={editingProduct?.stock ?? ""}
-                    placeholder="20"
-                  />
-                </label>
-                <label>
-                  Pack size
-                  <input
-                    name="weight"
-                    defaultValue={editingProduct?.weight || ""}
-                    placeholder="100 gm"
-                  />
-                </label>
+                <label>Concentration<input name="concentration" defaultValue={editingProduct?.concentration || ""} placeholder="Eau de Parfum" /></label>
+                <label>Fragrance family<input name="fragranceFamily" defaultValue={editingProduct?.fragranceFamily || ""} placeholder="Woody aromatic" /></label>
               </div>
+              <div className="admin-form-row">
+                <label>Top notes<input name="topNotes" defaultValue={(editingProduct?.topNotes || []).join(", ")} placeholder="Bergamot, cardamom" /></label>
+                <label>Heart notes<input name="heartNotes" defaultValue={(editingProduct?.heartNotes || []).join(", ")} placeholder="Jasmine, rose" /></label>
+              </div>
+              <label>Base notes<input name="baseNotes" defaultValue={(editingProduct?.baseNotes || []).join(", ")} placeholder="Cedar, musk" /></label>
+              <label className="admin-checkbox-label"><input name="showOnShop" type="checkbox" defaultChecked={editingProduct?.showOnShop ?? true} />Show on storefront</label>
+              <label>
+                Description
+                <textarea name="description" rows="3" defaultValue={editingProduct?.description || ""} placeholder="Materials, care, dimensions, and styling details" />
+              </label>
+              <section className="admin-variant-editor">
+                <div className="admin-image-editor-heading">
+                  <div><strong>Sellable variants</strong><span>Each row has its own SKU, options, price and stock.</span></div>
+                  <button type="button" className="admin-button admin-button-secondary" onClick={() => setVariantDraft((current) => [...current, emptyVariant()])}><Plus size={14} /> Add variant</button>
+                </div>
+                {variantDraft.map((variant, index) => (
+                  <div className="admin-variant-row" key={variant.id || index}>
+                    <div className="admin-form-row">
+                      <label>SKU<input required value={variant.sku} onChange={(event) => setVariantDraft((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, sku: event.target.value } : row))} placeholder="RING-ROSE-06" /></label>
+                      <label>Size and options<input value={variant.optionsText} onChange={(event) => setVariantDraft((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, optionsText: event.target.value } : row))} placeholder="volumeMl=50" /></label>
+                    </div>
+                    <div className="admin-form-row">
+                      <label>Selling price (₹)<input required type="number" min="0" value={variant.price} onChange={(event) => setVariantDraft((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, price: event.target.value } : row))} /></label>
+                      <label>Compare-at price (₹)<input type="number" min="0" value={variant.compareAtPrice} onChange={(event) => setVariantDraft((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, compareAtPrice: event.target.value } : row))} /></label>
+                    </div>
+                    <div className="admin-form-row">
+                      <label>Stock quantity<input required type="number" min="0" value={variant.stock} onChange={(event) => setVariantDraft((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, stock: event.target.value } : row))} /></label>
+                      <label className="admin-variant-active">Available for sale<input type="checkbox" checked={variant.active !== false} onChange={(event) => setVariantDraft((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, active: event.target.checked } : row))} /></label>
+                      {variantDraft.length > 1 && <button type="button" className="admin-text-button" onClick={() => setVariantDraft((current) => current.filter((_, rowIndex) => rowIndex !== index))}>Remove variant</button>}
+                    </div>
+                  </div>
+                ))}
+              </section>
               <div className="admin-image-editor">
                 <div className="admin-image-editor-heading">
                   <div>

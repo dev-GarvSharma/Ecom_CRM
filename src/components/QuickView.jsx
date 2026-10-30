@@ -27,7 +27,7 @@ export default function QuickView() {
             <p className="mt-4 leading-7 opacity-75">{product.description}</p>
             <div className="mt-6 flex flex-wrap gap-2">{product.colors.map((color) => <span key={color} className="rounded-full bg-white/70 px-4 py-2 text-sm dark:bg-white/10">{color}</span>)}</div>
             <div className="mt-8 flex gap-3">
-              <button className="flex flex-1 items-center justify-center gap-2 rounded-full rose-gradient px-5 py-3 font-bold text-[#1A1A1A]" onClick={() => { dispatch(addToCart(product)); dispatch(setCartOpen(true)); }}><ShoppingBag size={18} /> Add to Cart</button>
+              <button className="flex flex-1 items-center justify-center gap-2 rounded-full rose-gradient px-5 py-3 font-bold text-[#1A1A1A] disabled:opacity-40" disabled={!product.variants?.some((variant) => variant.active && variant.stock > 0)} onClick={() => { dispatch(addToCart(product)); dispatch(setCartOpen(true)); }}><ShoppingBag size={18} /> Add to Cart</button>
               <button className="grid h-12 w-12 place-items-center rounded-full bg-white shadow-sm dark:bg-white/10" onClick={() => dispatch(toggleWishlist(product))} aria-label="Wishlist"><Heart size={19} /></button>
             </div>
             <Link to={`/product/${product.id}`} onClick={() => dispatch(setQuickView(null))} className="mt-4 block text-center text-sm font-bold text-[#D4A373]">View full details</Link>

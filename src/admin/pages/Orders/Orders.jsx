@@ -17,6 +17,7 @@ import {
   StatusPill,
 } from "../../components/AdminPrimitives.jsx";
 import { formatRupees } from "../../models/catalog.js";
+import { downloadCsv } from "../../services/exportCsv.js";
 
 export default function Orders({ globalSearch = "", onNotify }) {
   const [response, setResponse] = useState(null);
@@ -34,13 +35,19 @@ export default function Orders({ globalSearch = "", onNotify }) {
     setLoading(true);
     setFailed(false);
     getAllOrders(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     getAllOrders(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [page, records]);
@@ -53,7 +60,7 @@ export default function Orders({ globalSearch = "", onNotify }) {
     (order) =>
       `${order.id} ${order.customer} ${order.email}`
         .toLowerCase()
-        .includes(`${query} ${globalSearch}`.toLowerCase().trim()) &&
+        .includes((globalSearch.trim() || query).toLowerCase().trim()) &&
       (filter === "All orders" || order.status === filter),
   );
   const openOrder = async (order) => {
@@ -96,6 +103,7 @@ export default function Orders({ globalSearch = "", onNotify }) {
     }));
     setDetail((current) => ({ ...current, ...next }));
     setSelectedOrder((current) => ({ ...current, ...next }));
+    await load();
     onNotify(`${selectedOrder.id} status updated.`);
   };
   if (loading) return <LoadingState label="Loading orders" />;
@@ -111,7 +119,10 @@ export default function Orders({ globalSearch = "", onNotify }) {
             className="admin-button admin-button-secondary"
             onClick={async () => {
               const result = await exportOrders();
-              onNotify(result.message || "Orders exported.");
+              const rows = result.data?.data || [];
+              onNotify(result.success
+                ? downloadCsv("store-orders.csv", rows) ? "Orders downloaded." : "No orders to export."
+                : result.message || "Could not export orders.");
             }}
           >
             <Download size={16} />

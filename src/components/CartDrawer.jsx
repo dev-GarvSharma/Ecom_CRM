@@ -35,6 +35,7 @@ export default function CartDrawer() {
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate font-semibold">{item.name}</h3>
                     <p className="text-sm text-[#D4A373]">{currency(item.price)}</p>
+                    <p className="text-xs opacity-65">{Object.values(item.variantOptions || {}).join(' / ')}</p>
                     <div className="mt-3 flex items-center justify-between">
                       <div className="flex items-center rounded-full bg-[#FFF8F5] dark:bg-[#1A1A1A]">
                         <button className="p-2" onClick={() => dispatch(updateQuantity({ id: item.id, quantity: item.quantity - 1 }))}><Minus size={14} /></button>

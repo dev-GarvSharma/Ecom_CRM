@@ -15,4 +15,4 @@ export const updateCustomer = async (customerId, customer) =>
 export const deleteCustomer = async (customerId) =>
   await remove(`admin/customers/${customerId}`);
 export const exportCustomers = async () =>
-  await post("admin/customers/export", {});
+  await post("admin/customers/export?page=1&recordPerPage=100", {});

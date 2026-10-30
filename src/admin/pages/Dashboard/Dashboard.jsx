@@ -12,7 +12,10 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { exportDashboardReport, getDashboardOverview } from "./api.js";
+import { getDashboardOverview } from "./api.js";
+import LocalStorageService from "../../services/localStorageService.js";
+import { downloadCsv } from "../../services/exportCsv.js";
+import { resolveImageUrl } from "../../../utils/image.js";
 import {
   PageHeading,
   LoadingState,
@@ -44,17 +47,24 @@ export default function Dashboard({ globalSearch = "", onNotify }) {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const user = LocalStorageService.getUserData();
   const load = () => {
     setLoading(true);
     setFailed(false);
     getDashboardOverview()
-      .then(setResult)
+      .then((response) => {
+        if (response.success) setResult(response);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     getDashboardOverview()
-      .then(setResult)
+      .then((response) => {
+        if (response.success) setResult(response);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
@@ -87,7 +97,7 @@ export default function Dashboard({ globalSearch = "", onNotify }) {
     .filter((order) =>
       `${order.id} ${order.customer}`
         .toLowerCase()
-        .includes(globalSearch.toLowerCase()),
+        .includes(globalSearch.trim().toLowerCase()),
     );
   const metrics = [
     { label: "Gross sales", value: formatRupees(cards.grossSales?.value ?? sales.total ?? 0), change: Number(cards.grossSales?.changePercent ?? sales.changePercent ?? 0), icon: Wallet, tone: "coral", data: "0,18 12,16 24,22 36,12 48,15 60,6 72,12 84,2 96,8" },
@@ -107,14 +117,24 @@ export default function Dashboard({ globalSearch = "", onNotify }) {
     ? storeInsights.restocking.products
     : [];
   const exportReport = async () => {
-    const response = await exportDashboardReport();
-    onNotify(response.message || "Dashboard report exported.");
+    const response = await getDashboardOverview();
+    const data = response.data?.data;
+    if (!response.success || !data) {
+      onNotify(response.message || "Could not export dashboard report.");
+      return;
+    }
+    const rows = Object.entries(data.metrics || {}).map(([metric, value]) => ({
+      metric,
+      value: value?.value ?? value,
+      changePercent: value?.changePercent ?? "",
+    }));
+    onNotify(downloadCsv("store-dashboard.csv", rows) ? "Dashboard report downloaded." : "No dashboard metrics to export.");
   };
   return (
     <div className="admin-page-content">
       <PageHeading
         eyebrow={new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "2-digit", year: "numeric" }).format(new Date()).toUpperCase()}
-        title="Good morning, Nisha"
+        title={`Welcome${user?.name ? `, ${user.name.split(" ")[0]}` : " to your store"}`}
         description="Here’s what’s happening with your store today."
         action={
           <div className="admin-heading-actions">
@@ -371,7 +391,7 @@ export default function Dashboard({ globalSearch = "", onNotify }) {
           {products.slice(0, 4).map((item, index) => (
             <div className="admin-top-product" key={item.productId || item.id || item.sku}>
               <div className="admin-product-thumb">
-                {item.image && <img src={item.image} alt="" />}
+                {item.image && <img src={resolveImageUrl(item.image)} alt={item.name || ""} />}
               </div>
               <div className="admin-top-product-info">
                 <strong>{item.name}</strong>

@@ -34,6 +34,8 @@ const REFRESH_TOKEN_URL = "auth/refresh";
 const AUTH_ENDPOINTS = [
   "auth/login",
   "auth/register",
+  "auth/verification/request",
+  "auth/verification/confirm",
   "auth/refresh",
   "auth/logout",
 ];
@@ -286,6 +288,14 @@ axiosClient.interceptors.request.use(
     // Optional x-access-token header:
     // if (token) request.headers["x-access-token"] = token;
 
+    const requestPath = request.url || "";
+    const requestQuery = requestPath.includes("?")
+      ? `?${requestPath.split("?").slice(1).join("?")}`
+      : "";
+    const requestName = `${(request.method || "GET").toUpperCase()} ${requestPath.split("?")[0]}${requestQuery}`;
+    request.metadata = { ...request.metadata, requestName };
+    console.info(`[API] ${requestName}`);
+
     return request;
   },
   (error) => Promise.reject(error),
@@ -304,7 +314,12 @@ let refreshingToken = null;
 // ============================================================
 
 axiosClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.info(
+      `[API] ${response.config.metadata?.requestName || response.config.url} → ${response.status}`,
+    );
+    return response;
+  },
 
   async (error) => {
     const originalConfig = error.config;
@@ -315,6 +330,9 @@ axiosClient.interceptors.response.use(
     }
 
     const status = error.response?.status;
+    console.error(
+      `[API] ${originalConfig.metadata?.requestName || originalConfig.url} → ${status || "network error"}`,
+    );
 
     // Only refresh access tokens for HTTP 401 responses.
     // 403 means forbidden and should not automatically log out.

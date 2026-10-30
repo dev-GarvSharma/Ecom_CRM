@@ -30,12 +30,12 @@ export function LoadingState({ label = "Loading your workspace" }) {
   );
 }
 
-export function ErrorState({ retry }) {
+export function ErrorState({ retry, message = "Try again in a moment." }) {
   return (
     <div className="admin-empty-state">
       <AlertCircle size={22} />
       <strong>We couldn’t load this view</strong>
-      <span>Try again in a moment.</span>
+      <span>{message}</span>
       <button className="admin-button admin-button-secondary" onClick={retry}>
         Try again
       </button>
@@ -43,7 +43,7 @@ export function ErrorState({ retry }) {
   );
 }
 
-export function SearchField({ value, onChange, placeholder = "Search" }) {
+export function SearchField({ value, onChange, placeholder = "Search", onFocus, onBlur, onKeyDown, inputRef }) {
   return (
     <label className="admin-search">
       <Search size={16} />
@@ -51,6 +51,10 @@ export function SearchField({ value, onChange, placeholder = "Search" }) {
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        ref={inputRef}
       />
       <kbd>/</kbd>
     </label>

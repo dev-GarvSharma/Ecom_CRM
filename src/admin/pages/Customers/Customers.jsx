@@ -18,6 +18,7 @@ import {
 } from "../../components/AdminPrimitives.jsx";
 import { formatRupees } from "../../models/catalog.js";
 import AdminPortal from "../../components/AdminPortal.jsx";
+import { downloadCsv } from "../../services/exportCsv.js";
 
 const getCustomerOrdersCount = (order) => {
   if (Array.isArray(order.items)) {
@@ -52,7 +53,6 @@ export default function Customers({ globalSearch = "", onNotify }) {
   const [ordersPage, setOrdersPage] = useState(1);
   const [ordersRecords, setOrdersRecords] = useState(10);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [created, setCreated] = useState([]);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [records, setRecords] = useState(20);
@@ -60,19 +60,25 @@ export default function Customers({ globalSearch = "", onNotify }) {
     setLoading(true);
     setFailed(false);
     getAllCustomers(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     getAllCustomers(page, records)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [page, records]);
   if (loading) return <LoadingState label="Loading customer directory" />;
   if (failed) return <ErrorState retry={load} />;
-  const customers = [...created, ...(response?.data?.data || [])];
+  const customers = response?.data?.data || [];
   const getCustomerSegment = (customer) =>
     customer.segment ||
     (customer.status
@@ -81,7 +87,7 @@ export default function Customers({ globalSearch = "", onNotify }) {
   const visible = customers.filter((customer) =>
     `${customer.name} ${customer.email} ${customer.location}`
       .toLowerCase()
-      .includes(`${query} ${globalSearch}`.toLowerCase().trim()),
+      .includes((globalSearch.trim() || query).toLowerCase().trim()),
   );
   const openCustomer = async (customer) => {
     setSelectedCustomer(customer);
@@ -109,27 +115,18 @@ export default function Customers({ globalSearch = "", onNotify }) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
     const customer = {
-      id: `CUS-${Date.now()}`,
-      name: values.get("name").trim(),
-      email: values.get("email").trim(),
-      location: values.get("location").trim(),
-      orders: 0,
-      spent: 0,
-      joined: new Intl.DateTimeFormat("en", {
-        month: "short",
-        day: "2-digit",
-        year: "numeric",
-      }).format(new Date()),
-      segment: "New",
+      name: String(values.get("name") || "").trim(),
+      phone: String(values.get("phone") || "").trim(),
+      email: String(values.get("email") || "").trim() || undefined,
     };
     const result = await createCustomer(customer);
     if (!result.success) {
       onNotify(result.message || "Could not create customer.");
       return;
     }
-    setCreated((items) => [customer, ...items]);
+    await load();
     setAddCustomerOpen(false);
-    onNotify("Customer created through the mock API.");
+    onNotify("Account created. The customer must verify their mobile before signing in.");
   };
   return (
     <div className="admin-page-content">
@@ -143,7 +140,10 @@ export default function Customers({ globalSearch = "", onNotify }) {
               className="admin-button admin-button-secondary"
               onClick={async () => {
                 const result = await exportCustomers();
-                onNotify(result.message || "Customers exported.");
+                const rows = result.data?.data || [];
+                onNotify(result.success
+                  ? downloadCsv("store-customers.csv", rows) ? "Customers downloaded." : "No customers to export."
+                  : result.message || "Could not export customers.");
               }}
             >
               <Download size={16} />
@@ -162,19 +162,19 @@ export default function Customers({ globalSearch = "", onNotify }) {
       <div className="admin-summary-strip">
         <div>
           <span>All customers</span>
-          <strong>1,429</strong>
+          <strong>{response?.data?.meta?.totalRecords ?? customers.length}</strong>
         </div>
         <div>
           <span>New this month</span>
-          <strong>186</strong>
+          <strong>{customers.filter((customer) => !customer.isVerified).length}</strong>
         </div>
         <div>
-          <span>Returning customers</span>
-          <strong>38.4%</strong>
+          <span>Verified accounts</span>
+          <strong>{customers.filter((customer) => customer.isVerified).length}</strong>
         </div>
         <div>
-          <span>Average lifetime value</span>
-          <strong>₹3,840</strong>
+          <span>Active accounts</span>
+          <strong>{customers.filter((customer) => customer.status === "active").length}</strong>
         </div>
       </div>
       <section className="admin-panel admin-table-panel">
@@ -214,7 +214,7 @@ export default function Customers({ globalSearch = "", onNotify }) {
                       </div>
                       <div>
                         <strong>{customer.name}</strong>
-                        <small>{customer.email}</small>
+                  <small>{customer.phone}{customer.email ? ` · ${customer.email}` : ""}</small>
                       </div>
                     </div>
                   </td>
@@ -318,7 +318,7 @@ export default function Customers({ globalSearch = "", onNotify }) {
               <span>
                 {ordersLoading
                   ? "Loading"
-                  : `${customerOrders.length} in demo data`}
+                  : `${customerOrders.length} orders`}
               </span>
             </div>
             {customerOrders.map((order) => (
@@ -338,7 +338,7 @@ export default function Customers({ globalSearch = "", onNotify }) {
             ))}
             {!ordersLoading && customerOrders.length === 0 && (
               <div className="admin-customer-no-orders">
-                No matching demo orders for this customer.
+                No orders for this customer yet.
               </div>
             )}
             {ordersLoading && (
@@ -405,17 +405,12 @@ export default function Customers({ globalSearch = "", onNotify }) {
                 <input name="name" required placeholder="Full name" />
               </label>
               <label>
-                Email address
-                <input
-                  name="email"
-                  type="email"
-                  required
-                  placeholder="name@example.com"
-                />
+                Mobile number
+                <input name="phone" type="tel" required pattern="[+][1-9][0-9]{7,14}" placeholder="+919876543210" />
               </label>
               <label>
-                Location
-                <input name="location" required placeholder="City, country" />
+                Email address (optional)
+                <input name="email" type="email" placeholder="name@example.com" />
               </label>
               <div className="admin-modal-footer">
                 <button

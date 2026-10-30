@@ -5,10 +5,12 @@ import Seo from "../components/Seo.jsx";
 import Section from "../components/Section.jsx";
 import ProductCard from "../components/ProductCard.jsx";
 import Stars from "../components/Stars.jsx";
-import { categories, products, testimonials } from "../data/products.js";
+import { testimonials } from "../data/products.js";
 import { resolveImageUrl } from "../utils/image.js";
+import { useCatalog } from "../catalog/useCatalog.js";
 
 export default function Home() {
+    const { categories, products } = useCatalog();
     return (
         <>
             <Seo title="Luxury Artificial Jewellery" description="Shop rose gold, blush and crystal artificial jewellery with a premium Instagram boutique aesthetic." />
@@ -18,7 +20,7 @@ export default function Home() {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {categories.slice(0, 6).map((category) => (
                         <Link key={category.name} to={`/shop?category=${category.name}`} className="group relative aspect-[4/3] overflow-hidden rounded-2xl luxury-shadow">
-                            <img src={category.image} alt={category.name} loading="lazy" className="h-full w-full object-cover transition duration-700 group-hover:scale-110" />
+                            {category.image ? <img src={category.image} alt={category.name} loading="lazy" className="h-full w-full object-cover transition duration-700 group-hover:scale-110" /> : <div aria-hidden="true" className="h-full w-full bg-gradient-to-br from-[#e6d6c6] via-[#c2a78f] to-[#5b483a] transition duration-700 group-hover:scale-110" />}
                             <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A]/70 to-transparent" />
                             <div className="absolute bottom-5 left-5 text-white">
                                 <p className="font-display text-3xl">{category.name}</p>
@@ -31,7 +33,7 @@ export default function Home() {
                 </div>
             </Section>
             <Section eyebrow="Fresh drop" title="New Arrivals">
-                <ProductScroller products={products.filter((item) => item.tags.includes("new arrivals"))} />
+                <ProductScroller products={products.slice(0, 8)} />
             </Section>
             <PromoBand />
             <Section eyebrow="Loved by the glow club" title="Best Sellers">
@@ -127,6 +129,7 @@ function PromoBand() {
 }
 
 function FlashSale() {
+    const { products } = useCatalog();
     return (
         <Section eyebrow="Limited sparkle" title="Flash Sale">
             <div className="grid items-center gap-8 rounded-3xl border border-[#D4A373]/20 bg-white/55 p-6 shadow-xl backdrop-blur dark:bg-white/5 lg:grid-cols-[1fr_1.4fr]">
@@ -148,6 +151,7 @@ function FlashSale() {
 }
 
 function InstagramGallery() {
+    const { products } = useCatalog();
     const images = products.concat(products).slice(0, 8);
     return (
         <Section eyebrow="@velvetspice" title="Instagram Gallery">

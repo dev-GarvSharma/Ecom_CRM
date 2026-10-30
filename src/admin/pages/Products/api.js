@@ -1,6 +1,7 @@
 import {
   get,
   patch,
+  post,
   postMultipart,
   putMultipart,
   remove,
@@ -19,4 +20,4 @@ export const updateProductsVisibility = async (productIds, showOnShop) =>
 export const deleteProduct = async (productId) =>
   await remove(`admin/products/${productId}`);
 export const exportProducts = async () =>
-  await post("admin/products/export", {});
+  await post("admin/products/export?page=1&recordPerPage=100", {});

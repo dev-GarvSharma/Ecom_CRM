@@ -5,7 +5,7 @@ import {
   CalendarDays,
   Download,
 } from "lucide-react";
-import { exportAnalyticsReport, getAnalytics } from "./api.js";
+import { getAnalytics } from "./api.js";
 import {
   ErrorState,
   LoadingState,
@@ -13,6 +13,7 @@ import {
   SelectField,
 } from "../../components/AdminPrimitives.jsx";
 import { formatRupees } from "../../models/catalog.js";
+import { downloadCsv } from "../../services/exportCsv.js";
 
 export default function Analytics({ onNotify }) {
   const [response, setResponse] = useState(null);
@@ -28,13 +29,19 @@ export default function Analytics({ onNotify }) {
     setLoading(true);
     setFailed(false);
     getAnalytics(periodValue)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     getAnalytics(periodValue)
-      .then(setResponse)
+      .then((result) => {
+        if (result.success) setResponse(result);
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [periodValue]);
@@ -71,8 +78,23 @@ export default function Analytics({ onNotify }) {
     ? `${chartLabels[0]} – ${chartLabels[chartLabels.length - 1]}`
     : period;
   const exportReport = async () => {
-    const result = await exportAnalyticsReport(periodValue);
-    onNotify(result.message || "Analytics report exported.");
+    const result = await getAnalytics(periodValue);
+    const report = result.data?.data;
+    if (!result.success || !report) {
+      onNotify(result.message || "Could not export analytics.");
+      return;
+    }
+    const rows = [
+      ...Object.entries(report.metrics || {}).map(([metric, values]) => ({
+        type: "metric",
+        name: metric,
+        value: values?.value ?? values,
+        changePercent: values?.changePercent ?? "",
+      })),
+      ...(report.salesOverTime || []).map((day) => ({ type: "daily-sales", ...day })),
+      ...(report.topProducts || []).map((product) => ({ type: "top-product", ...product })),
+    ];
+    onNotify(downloadCsv(`analytics-${periodValue}.csv`, rows) ? "Analytics report downloaded." : "No analytics data to export.");
   };
   return (
     <div className="admin-page-content">

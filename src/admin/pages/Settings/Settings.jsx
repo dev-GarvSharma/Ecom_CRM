@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Bell,
   CreditCard,
@@ -9,9 +10,9 @@ import {
 } from "lucide-react";
 import {
   getStoreSettings,
-  requestPasswordReset,
   saveStoreSettings,
 } from "./api.js";
+import LocalStorageService from "../../services/localStorageService.js";
 import {
   ErrorState,
   LoadingState,
@@ -27,34 +28,42 @@ const sections = [
 ];
 
 export default function Settings({ onNotify }) {
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [activeSection, setActiveSection] = useState("general");
   const [form, setForm] = useState({});
+  const user = LocalStorageService.getUserData();
   const load = () => {
     setLoading(true);
     setFailed(false);
     getStoreSettings()
-      .then((result) => setForm(result?.data?.data))
+      .then((result) => {
+        if (result.success) setForm(result.data?.data || {});
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     getStoreSettings()
-      .then((result) => setForm(result?.data?.data))
+      .then((result) => {
+        if (result.success) setForm(result.data?.data || {});
+        else setFailed(true);
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => {
+    const section = new URLSearchParams(location.search).get("section");
+    if (sections.some((item) => item.key === section)) setActiveSection(section);
+  }, [location.search]);
   const update = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
   const save = async (event) => {
     event.preventDefault();
     const result = await saveStoreSettings(form);
-    onNotify(result.message || "Settings saved.");
-  };
-  const sendPasswordReset = async () => {
-    const result = await requestPasswordReset();
-    onNotify(result.message || "Password reset request sent.");
+    onNotify(result.message || (result.success ? "Settings saved." : "Could not save settings."));
   };
   if (loading) return <LoadingState label="Loading store settings" />;
   if (failed) return <ErrorState retry={load} />;
@@ -114,13 +123,14 @@ export default function Settings({ onNotify }) {
               </label>
               <label className="admin-form-label">
                 Store contact email
-                <input type="email" defaultValue="hello@cuppanord.com" />
+                <input type="email" value={form.supportEmail || ""} onChange={(event) => update("supportEmail", event.target.value)} />
               </label>
               <label className="admin-form-label">
                 Store description
                 <textarea
                   rows="3"
-                  defaultValue="Thoughtfully sourced teas for better everyday rituals."
+                  value={form.description || ""}
+                  onChange={(event) => update("description", event.target.value)}
                 />
               </label>
               <div className="admin-settings-divider" />
@@ -131,9 +141,10 @@ export default function Settings({ onNotify }) {
                   <span>Your storefront is available to customers.</span>
                 </div>
                 <button
-                  className="admin-toggle is-on"
+                  className={`admin-toggle ${form.onlineStore === false ? "" : "is-on"}`}
                   type="button"
-                  aria-label="Online store is on"
+                  aria-label="Toggle online store"
+                  onClick={() => update("onlineStore", form.onlineStore === false)}
                 >
                   <i />
                 </button>
@@ -198,9 +209,10 @@ export default function Settings({ onNotify }) {
                   </span>
                 </div>
                 <button
-                  className="admin-toggle is-on"
+                  className={`admin-toggle ${form.guestCheckout === true ? "is-on" : ""}`}
                   type="button"
-                  aria-label="Guest checkout is on"
+                  aria-label="Toggle guest checkout"
+                  onClick={() => update("guestCheckout", form.guestCheckout !== true)}
                 >
                   <i />
                 </button>
@@ -211,16 +223,17 @@ export default function Settings({ onNotify }) {
                   <span>Collect a phone number with every order.</span>
                 </div>
                 <button
-                  className="admin-toggle is-on"
+                  className={`admin-toggle ${form.requirePhone !== false ? "is-on" : ""}`}
                   type="button"
-                  aria-label="Phone number required"
+                  aria-label="Toggle phone number requirement"
+                  onClick={() => update("requirePhone", form.requirePhone === false)}
                 >
                   <i />
                 </button>
               </div>
               <label className="admin-form-label">
                 Default payment terms
-                <select defaultValue="Due on receipt">
+                <select value={form.paymentTerms || "Due on receipt"} onChange={(event) => update("paymentTerms", event.target.value)}>
                   <option>Due on receipt</option>
                   <option>Net 7 days</option>
                   <option>Net 30 days</option>
@@ -285,12 +298,14 @@ export default function Settings({ onNotify }) {
                 </div>
               </div>
               <div className="admin-security-card">
-                <div className="admin-avatar admin-avatar-green">NS</div>
-                <div>
-                  <strong>Nisha Sharma</strong>
-                  <span>Owner · nisha@cuppanord.com</span>
+                <div className="admin-avatar admin-avatar-green">
+                  {user?.name?.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "AD"}
                 </div>
-                <span className="admin-security-badge">Store owner</span>
+                <div>
+                  <strong>{user?.name || "Administrator"}</strong>
+                  <span>{user?.phone || user?.email || "Verified administrator account"}</span>
+                </div>
+                <span className="admin-security-badge">{user?.primaryRole || user?.role || "Admin"}</span>
               </div>
               <div className="admin-setting-toggle-row">
                 <div>
@@ -305,19 +320,13 @@ export default function Settings({ onNotify }) {
                   <i />
                 </button>
               </div>
-              <button
-                type="button"
-                className="admin-button admin-button-secondary"
-                onClick={sendPasswordReset}
-              >
-                Send password reset link
-              </button>
+              <p>Administrator sign-in uses a one-time code sent to the verified mobile number.</p>
             </section>
           )}
         </form>
       </div>
       <div className="admin-page-footnote">
-        <span>Settings are stored for this demo session only.</span>
+        <span>Settings are saved to the store database.</span>
         <span>Version 1.0.0</span>
       </div>
     </div>

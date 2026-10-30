@@ -16,9 +16,23 @@ const cartSlice = createSlice({
   reducers: {
     addToCart: (state, action) => {
       const product = action.payload;
-      const existing = state.items.find((item) => item.id === product.id);
+      const variant = product.selectedVariant || product.variants?.find((item) => item.active && item.stock > 0);
+      if (!variant) return;
+      const lineId = `${product.id}:${variant.id}`;
+      const existing = state.items.find((item) => item.id === lineId);
       if (existing) existing.quantity += product.quantity || 1;
-      else state.items.push({ ...product, quantity: product.quantity || 1, selectedVariant: product.selectedVariant || 'Rose Gold' });
+      else state.items.push({
+        ...product,
+        id: lineId,
+        productId: product.id,
+        variantId: variant.id,
+        sku: variant.sku,
+        variantOptions: variant.options,
+        price: variant.price,
+        oldPrice: variant.compareAtPrice,
+        stock: variant.stock,
+        quantity: product.quantity || 1,
+      });
       persist(state.items);
     },
     updateQuantity: (state, action) => {

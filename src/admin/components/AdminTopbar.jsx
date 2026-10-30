@@ -1,6 +1,6 @@
-import { Bell, CheckCheck, Command, Menu, X } from "lucide-react";
+import { Bell, CheckCheck, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { SearchField } from "./AdminPrimitives.jsx";
 import {
   getAllNotifications,
@@ -16,15 +16,52 @@ const names = {
   "/admin/customers": "Customers",
   "/admin/analytics": "Analytics",
   "/admin/marketing": "Marketing",
+  "/admin/access": "Access control",
+  "/admin/offers": "Offers",
+  "/admin/promotions": "Promotional products",
+  "/admin/activity": "Activity history",
+  "/admin/notifications": "Notifications",
   "/admin/settings": "Settings",
 };
 
-export default function AdminTopbar({ onMenu, onSearch, search, menuOpen }) {
+const searchDestinations = [
+  { label: "Overview", keywords: "dashboard home", path: "/admin" },
+  { label: "Orders", keywords: "sales payments fulfillment", path: "/admin/orders" },
+  { label: "Products", keywords: "catalog perfume variants", path: "/admin/products" },
+  { label: "Categories", keywords: "collections catalog", path: "/admin/categories" },
+  { label: "Inventory", keywords: "stock variants", path: "/admin/inventory" },
+  { label: "Customers", keywords: "users accounts", path: "/admin/customers" },
+  { label: "Analytics", keywords: "reports sales", path: "/admin/analytics" },
+  { label: "Marketing", keywords: "campaign subscribers", path: "/admin/marketing" },
+  { label: "Offers", keywords: "discount coupon", path: "/admin/offers" },
+  { label: "Promotional products", keywords: "free product gift promotion", path: "/admin/promotions" },
+  { label: "Activity history", keywords: "audit abandoned cart", path: "/admin/activity" },
+  { label: "Access control", keywords: "roles permissions users", path: "/admin/access" },
+  { label: "General store settings", keywords: "store name contact online store", path: "/admin/settings?section=general" },
+  { label: "Notification settings", keywords: "email alerts low stock", path: "/admin/settings?section=notifications" },
+  { label: "Checkout settings", keywords: "guest checkout phone prepaid cod payment", path: "/admin/settings?section=checkout" },
+  { label: "Regional settings", keywords: "currency timezone language", path: "/admin/settings?section=regional" },
+  { label: "Security settings", keywords: "account security login", path: "/admin/settings?section=security" },
+  { label: "Admin notifications", keywords: "updates alerts", path: "/admin/notifications" },
+];
+
+export default function AdminTopbar({ onMenu, onSearch, search, menuOpen, user }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const section = names[location.pathname] || "Overview";
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const unread = notifications.filter((item) => !item.read).length;
+  const searchMatches = search.trim()
+    ? searchDestinations.filter((item) => `${item.label} ${item.keywords}`.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 6)
+    : [];
+  const initials = (user?.name || "Admin")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
   useEffect(() => {
     getAllNotifications()
       .then((response) => {
@@ -59,11 +96,12 @@ export default function AdminTopbar({ onMenu, onSearch, search, menuOpen }) {
         </div>
       </div>
       <div className="admin-topbar-tools">
-        <SearchField
-          value={search}
-          onChange={onSearch}
-          placeholder="Search anything..."
-        />
+        <div className="admin-global-search-wrap">
+          <SearchField value={search} onChange={onSearch} onFocus={() => setSearchOpen(true)} onBlur={() => window.setTimeout(() => setSearchOpen(false), 100)} onKeyDown={(event) => { if (event.key === "Escape") setSearchOpen(false); if (event.key === "Enter" && searchMatches[0]) { navigate(searchMatches[0].path); onSearch(""); setSearchOpen(false); } }} placeholder="Search menus, settings, records..." />
+          {searchOpen && searchMatches.length > 0 && <div className="admin-global-search-results" role="listbox" aria-label="Admin search results">
+            {searchMatches.map((item) => <button key={`${item.label}:${item.path}`} type="button" role="option" onMouseDown={(event) => event.preventDefault()} onClick={() => { navigate(item.path); onSearch(""); setSearchOpen(false); }}><strong>{item.label}</strong><small>{item.path.includes("settings") ? "Setting" : "Admin menu"}</small></button>)}
+          </div>}
+        </div>
         <div className="admin-notification-wrap">
           <button
             className="admin-icon-button admin-notification-button"
@@ -110,31 +148,29 @@ export default function AdminTopbar({ onMenu, onSearch, search, menuOpen }) {
                   </div>
                 </div>
                 <div className="admin-notification-list">
-                  {notifications.map((item) => (
+                  {notifications.slice(0, 3).map((item) => (
                     <article
                       className={`admin-notification-item ${item.read ? "is-read" : ""}`}
                       key={item.id}
                     >
                       <span
-                        className={`notification-mark notification-${item.tone}`}
+                        className={`notification-mark notification-${item.type || "info"}`}
                       >
                         <Bell size={14} />
                       </span>
                       <div>
                         <strong>{item.title}</strong>
                         <p>{item.detail}</p>
-                        <small>{item.time}</small>
+                        <small>{item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}</small>
                       </div>
                       {!item.read && <i className="notification-unread-dot" />}
                     </article>
                   ))}
                 </div>
-                <button
-                  className="admin-notification-footer"
-                  onClick={markNotificationsRead}
-                >
-                  Mark all as read
-                </button>
+                <div className="admin-notification-footer">
+                  <button onClick={markNotificationsRead}>Mark all as read</button>
+                  <button onClick={() => { setNotificationsOpen(false); navigate("/admin/notifications"); }}>View all notifications</button>
+                </div>
               </section>
             </>
           )}
@@ -146,7 +182,7 @@ export default function AdminTopbar({ onMenu, onSearch, search, menuOpen }) {
         >
           <span>⌘ K</span>
         </button>
-        <div className="admin-avatar admin-avatar-green">NS</div>
+        <div className="admin-avatar admin-avatar-green" title={user?.name || "Administrator"}>{initials}</div>
       </div>
     </header>
   );

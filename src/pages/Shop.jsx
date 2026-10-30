@@ -5,9 +5,10 @@ import ProductCard from '../components/ProductCard.jsx';
 import Seo from '../components/Seo.jsx';
 import Section from '../components/Section.jsx';
 import Skeleton from '../components/Skeleton.jsx';
-import { categories, products } from '../data/products.js';
+import { useCatalog } from '../catalog/useCatalog.js';
 
 export default function Shop() {
+  const { categories, products, loading, error } = useCatalog();
   const [params] = useSearchParams();
   const [category, setCategory] = useState(params.get('category') || 'All');
   const [sort, setSort] = useState('popular');
@@ -21,7 +22,7 @@ export default function Shop() {
     if (sort === 'high') list = [...list].sort((a, b) => b.price - a.price);
     if (sort === 'latest') list = [...list].sort((a, b) => Number(b.tags.includes('new arrivals')) - Number(a.tags.includes('new arrivals')));
     return list;
-  }, [category, maxPrice, onlyTrending, sort]);
+  }, [category, maxPrice, onlyTrending, products, sort]);
 
   return (
     <>
@@ -33,7 +34,7 @@ export default function Shop() {
             <label className="text-sm font-semibold">Category</label>
             <select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 w-full rounded-2xl border border-[#D4A373]/20 bg-white/70 px-4 py-3 outline-none dark:bg-white/10">
               <option>All</option>
-              {categories.map((item) => <option key={item.name}>{item.name}</option>)}
+              {categories.map((item) => <option key={item.id}>{item.name}</option>)}
             </select>
             <label className="mt-5 block text-sm font-semibold">Price up to {maxPrice}</label>
             <input type="range" min="700" max="5000" step="100" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} className="mt-3 w-full accent-[#D4A373]" />
@@ -55,8 +56,10 @@ export default function Shop() {
               </select>
             </div>
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {filtered.slice(0, visible).map((product) => <ProductCard key={product.id} product={product} />)}
-              {filtered.length === 0 && Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-96" />)}
+              {loading && Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-96" />)}
+              {!loading && filtered.slice(0, visible).map((product) => <ProductCard key={product.id} product={product} />)}
+              {!loading && error && <p role="alert" className="sm:col-span-2">{error}</p>}
+              {!loading && !error && filtered.length === 0 && <p className="sm:col-span-2">No jewelry matches those filters.</p>}
             </div>
             {visible < filtered.length && <button onClick={() => setVisible(visible + 4)} className="mx-auto mt-8 block rounded-full bg-[#1A1A1A] px-7 py-3 font-bold text-white">Load more</button>}
           </div>

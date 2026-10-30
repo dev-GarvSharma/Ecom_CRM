@@ -5,8 +5,10 @@ import {
   Boxes,
   ChevronLeft,
   CircleHelp,
-  Command,
+  Gift,
   LayoutDashboard,
+  KeyRound,
+  LogOut,
   Megaphone,
   Package,
   Settings,
@@ -17,16 +19,26 @@ import {
 
 const navigation = [
   { label: "Overview", path: "/admin", icon: LayoutDashboard, end: true },
-  { label: "Orders", path: "/admin/orders", icon: ShoppingBag, count: "12" },
+  { label: "Orders", path: "/admin/orders", icon: ShoppingBag },
   { label: "Products", path: "/admin/products", icon: Package },
   { label: "Categories", path: "/admin/categories", icon: Boxes },
   { label: "Inventory", path: "/admin/inventory", icon: Activity, alert: true },
   { label: "Customers", path: "/admin/customers", icon: Users },
   { label: "Analytics", path: "/admin/analytics", icon: BarChart3 },
   { label: "Marketing", path: "/admin/marketing", icon: Megaphone },
+  { label: "Offers", path: "/admin/offers", icon: Gift },
+  { label: "Promotional products", path: "/admin/promotions", icon: Package },
+  { label: "Activity history", path: "/admin/activity", icon: Activity },
+  { label: "Access control", path: "/admin/access", icon: KeyRound },
 ];
 
-export default function AdminSidebar({ open, onClose, collapsed, onToggle }) {
+export default function AdminSidebar({ open, onClose, collapsed, onToggle, user, onLogout }) {
+  const initials = (user?.name || "Admin")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
   return (
     <>
       <button
@@ -40,8 +52,8 @@ export default function AdminSidebar({ open, onClose, collapsed, onToggle }) {
         <div className="admin-store-switcher">
           <div className="admin-store-avatar">C</div>
           <div className="admin-store-copy">
-            <strong>Cuppanord Store</strong>
-            <span>Online store</span>
+            <strong>Perfume Store</strong>
+            <span>Admin workspace</span>
           </div>
           <ChevronLeft className="admin-store-chevron" size={15} />
         </div>
@@ -87,11 +99,14 @@ export default function AdminSidebar({ open, onClose, collapsed, onToggle }) {
           </button>
         </div>
         <div className="admin-sidebar-footer">
-          <div className="admin-avatar admin-avatar-green">NS</div>
+          <div className="admin-avatar admin-avatar-green">{initials}</div>
           <div className="admin-user-copy">
-            <strong>Nisha Sharma</strong>
-            <span>Store owner</span>
+            <strong>{user?.name || "Administrator"}</strong>
+            <span>{user?.primaryRole || user?.role || "Admin"}</span>
           </div>
+          <button className="admin-collapse-button" onClick={onLogout} aria-label="Sign out" title="Sign out">
+            <LogOut size={16} />
+          </button>
           <button
             className="admin-collapse-button"
             onClick={onToggle}
